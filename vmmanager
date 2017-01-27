@@ -53,6 +53,12 @@ case $1 in
                 for vm in $RUNNINGVMS; do
                     echo -e "Sending Shutdown Signal to \"$(getVMName $vm)\"..." && $SU "$VBOXMANAGE controlvm $vm acpipowerbutton"
                 done; 
+
+                echo "Waiting for VMs to finish shutting down"
+                while [[ $($SU "$VBOXMANAGE list runningvms") ]];
+                do
+                    sleep 1
+                done
             fi
         else
             echo "No running VMs to stop!"
