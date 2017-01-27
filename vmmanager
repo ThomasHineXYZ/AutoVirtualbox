@@ -14,26 +14,27 @@
 # Original script from http://charlesauer.net/scripts/linux/virtualbox-script-ubuntu.php
 
 # Add this script to /etc/init.d/
-# Run "update-rc.d vmboot defaults 99 01" as root
+# Run "update-rc.d vmmanager defaults 99 01" as root
 
 
-# User who is running the VMs (Change this!)
+# User who is running the VMs. Same user that was set for PHPVirtualbox, if you are running that
+# (Change this!)
 VBOXUSER=vbox
 
 # Environmental Variables (Do Not Modify!)
-SU="sudo -H -u $VBOXUSER"
+SU="su - $VBOXUSER -c"
 VBOXMANAGE="/usr/bin/VBoxManage --nologo"
 
 # Get UUID of All Running VMs
 # UUID looks like this: a02b5b54-a84d-48fa-8dac-2a3fad55717e
-RUNNINGVMS=$($SU $VBOXMANAGE list runningvms | sed -e 's/^".*".*{\(.*\)}/\1/')
+RUNNINGVMS=$($SU "$VBOXMANAGE list runningvms" | sed -e 's/^".*".*{\(.*\)}/\1/')
 
 # Get UUID of All VMs
-ALLVMS=$($SU $VBOXMANAGE list vms | sed -e 's/^".*".*{\(.*\)}/\1/')
+ALLVMS=$($SU "$VBOXMANAGE list vms" | sed -e 's/^".*".*{\(.*\)}/\1/')
 
 # Functions
 function getVMName() { 
-    echo $($SU $VBOXMANAGE list vms | grep "$1" | awk -F\" '{print $(NF -1)}');
+    echo $($SU "$VBOXMANAGE list vms" | grep "$1" | awk -F\" '{print $(NF -1)}');
 }
 
 # Check to ensure $ALLVMS is not null and exit if it is.
@@ -42,44 +43,48 @@ if [[ $ALLVMS = "" ]]; then
 fi
 
 case $1 in
-stop)
-    if [[ -n $RUNNINGVMS ]]; then
-        for v in $RUNNINGVMS; do
-            echo -e "Sending Shutdown Signal to \"$(getVMName $vm)\"..." && $SU $VBOXMANAGE controlvm $vm acpishutdown
-        done; 
-    else
-        echo "No running VMs to save!"
-    fi
-;;
-start)
-    for v in $ALLVMS; do
-        if [[ -n $($SU $VBOXMANAGE showvminfo $vm | grep saved) ]]; then
-            echo -e "Waiting for VM \"$(getVMName $vm)\" to power on..." && $SU $VBOXMANAGE startvm $vm --type headless 1> /dev/null && echo "VM \"$(getVMName $vm)\" started successfully!"
+    stop)
+        if [[ -n $RUNNINGVMS ]]; then
+            for v in $RUNNINGVMS; do
+                echo -e "Sending Shutdown Signal to \"$(getVMName $vm)\"..." && $SU "$VBOXMANAGE controlvm $vm acpishutdown"
+            done; 
+        else
+            echo "No running VMs to save!"
         fi
+    ;;
 
-        # If the previous loop has an error, the loops exits and returns an error.
-        if [[ $? -ne 0 ]]; then
-            echo "There was an error starting $(getVMName $vm)! Try starting it manually to see what the problem is."; break
+    start)
+        for v in $ALLVMS; do
+            if [[ -n $($SU "$VBOXMANAGE showvminfo $vm" | grep saved) ]]; then
+                echo -e "Waiting for VM \"$(getVMName $vm)\" to power on..." && $SU "$VBOXMANAGE startvm $vm --type headless" 1> /dev/null && echo "VM \"$(getVMName $vm)\" started successfully!"
+            fi
+
+            # If the previous loop has an error, the loops exits and returns an error.
+            if [[ $? -ne 0 ]]; then
+                echo "There was an error starting $(getVMName $vm)! Try starting it manually to see what the problem is."; break
+            fi
+        done
+
+        if [[ -z $($SU "$VBOXMANAGE showvminfo $vm" | grep saved) ]]; then
+            echo "No Saved VMs to Start!"
         fi
-    done
+    ;;
 
-    if [[ -z $($SU $VBOXMANAGE showvminfo $vm | grep saved) ]]; then
-        echo "No Saved VMs to Start!"
-    fi
-;;
-status)
-    if [[ -n $RUNNINGVMS ]]; then
-        echo "List of Running VMs:" && $SU $VBOXMANAGE list runningvms; 
-    else
-        echo "No VMs Currently Running!"
-    fi
-;;
-list)
-    echo "List of All VMs:" && $SU $VBOXMANAGE list vms
-;;
-*)
-    echo "Usage: /etc/init.d/vmmanager stop | start | status | list"; exit 1
-;;
+    status)
+        if [[ -n $RUNNINGVMS ]]; then
+            echo "List of Running VMs:" && $SU "$VBOXMANAGE list runningvms"
+        else
+            echo "No VMs Currently Running!"
+        fi
+    ;;
+
+    list)
+        echo "List of All VMs:" && $SU "$VBOXMANAGE list vms"
+    ;;
+
+    *)
+        echo "Usage: /etc/init.d/$0 stop | start | status | list"; exit 1
+    ;;
 esac
 exit 0
 # eof
