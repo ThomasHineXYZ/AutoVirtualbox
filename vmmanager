@@ -23,7 +23,7 @@ VBOXUSER=vbox
 
 # Environmental Variables (Do Not Modify!)
 SU="su - $VBOXUSER -c"
-VBOXMANAGE="/usr/bin/VBoxManage --nologo"
+VBOXMANAGE="vboxmanage"
 
 # Get UUID of All Running VMs
 # UUID looks like this: a02b5b54-a84d-48fa-8dac-2a3fad55717e
@@ -45,28 +45,38 @@ fi
 case $1 in
     stop)
         if [[ -n $RUNNINGVMS ]]; then
-            for v in $RUNNINGVMS; do
-                echo -e "Sending Shutdown Signal to \"$(getVMName $vm)\"..." && $SU "$VBOXMANAGE controlvm $vm acpishutdown"
-            done; 
+            if [ "$#" -gt 1 ]; then
+                for vm in ${@:2}; do
+                    echo -e "Sending Shutdown Signal to \"$(getVMName $vm)\"..." && $SU "$VBOXMANAGE controlvm $vm acpipowerbutton"
+                done
+            else
+                for vm in $RUNNINGVMS; do
+                    echo -e "Sending Shutdown Signal to \"$(getVMName $vm)\"..." && $SU "$VBOXMANAGE controlvm $vm acpipowerbutton"
+                done; 
+            fi
         else
-            echo "No running VMs to save!"
+            echo "No running VMs to stop!"
         fi
     ;;
 
     start)
-        for v in $ALLVMS; do
-            if [[ -n $($SU "$VBOXMANAGE showvminfo $vm" | grep saved) ]]; then
-                echo -e "Waiting for VM \"$(getVMName $vm)\" to power on..." && $SU "$VBOXMANAGE startvm $vm --type headless" 1> /dev/null && echo "VM \"$(getVMName $vm)\" started successfully!"
-            fi
+        if [ "$#" -gt 1 ]; then
+            for vm in ${@:2}; do
+                if [[ -n $($SU "$VBOXMANAGE showvminfo $vm" | grep "powered off") ]]; then
+                    echo -e "Waiting for VM \"$(getVMName $vm)\" to power on..." && $SU "$VBOXMANAGE startvm $vm --type headless" 1> /dev/null && echo "VM \"$(getVMName $vm)\" started successfully!"
+                fi
+            done
+        else
+            for vm in $ALLVMS; do
+                if [[ -n $($SU "$VBOXMANAGE showvminfo $vm" | grep "powered off") ]]; then
+                    echo -e "Waiting for VM \"$(getVMName $vm)\" to power on..." && $SU "$VBOXMANAGE startvm $vm --type headless" 1> /dev/null && echo "VM \"$(getVMName $vm)\" started successfully!"
+                fi
 
-            # If the previous loop has an error, the loops exits and returns an error.
-            if [[ $? -ne 0 ]]; then
-                echo "There was an error starting $(getVMName $vm)! Try starting it manually to see what the problem is."; break
-            fi
-        done
-
-        if [[ -z $($SU "$VBOXMANAGE showvminfo $vm" | grep saved) ]]; then
-            echo "No Saved VMs to Start!"
+                # If the previous loop has an error, the loops exits and returns an error.
+                if [[ $? -ne 0 ]]; then
+                    echo "There was an error starting $(getVMName $vm)! Try starting it manually to see what the problem is."; break
+                fi
+            done
         fi
     ;;
 
